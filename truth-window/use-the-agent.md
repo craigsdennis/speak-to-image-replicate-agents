@@ -14,4 +14,12 @@ Okay I'm starting a new truth-window session. This is called use-the-agent.md
 Alright I'd love to see you break the App.tsx file into separate files. This is typically in a pages folder right?
 ```
 ### Summary
-- Will reorganize the current single-file React app into separate components under a `src/pages/` directory, moving the create-image and detail routes (plus shared shell) out of `App.tsx`.
+- Split the router out of `App.tsx`, placed the create-image/detail components plus the shared shell inside `src/pages/`, and pointed the root component at those modules.
+
+## Entry 3
+### User said
+```
+Can you help me clean up the form on the edit page. I want to list the edits there too. Maybe collapse them, but show the total.
+```
+### Summary
+- Refined the edit form styling/validation, hooked it to the agent callable, and surfaced the edit history beneath it inside a collapsible block that shows the total count and thumbnails of each edit.
