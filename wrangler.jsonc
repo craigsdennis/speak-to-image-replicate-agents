@@ -16,9 +16,6 @@
 	"observability": {
 		"enabled": true
 	},
-	"ai": {
-		"binding": "AI"
-	},
 	"durable_objects": {
 		"bindings": [
 			{
