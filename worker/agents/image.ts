@@ -17,7 +17,6 @@ export type ImageState = {
   createdAt: string;
 };
 
-
 export class ImageAgent extends Agent<Env, ImageState> {
   initialState: ImageState = {
     createdAt: new Date().toISOString(),
@@ -58,8 +57,41 @@ export class ImageAgent extends Agent<Env, ImageState> {
     });
   }
 
+  async generateEditPromptInContext({ prompt }: { prompt: string }) {
+    const { response } = await env.AI.run(
+      "@cf/meta/llama-4-scout-17b-16e-instruct",
+      {
+        messages: [
+          {
+            role: "system",
+            content: `Listed below are specific edits that were requested to be made to an image. 
+          Your job is to generate a new single prompt that will maintain the context of what the user is attempting to do edit wise.
+          <OriginalPrompt>
+          ${this.state.initialPrompt}
+          </OriginalPrompt>
+          <Edits>
+          ${this.state.edits.map((e) => e.prompt).join("\n\n")}
+          </Edits>
+          The user will provide you with an edit request, use the edits to create a new contextual prompt.
+
+          Reminder the prompt should be to edit an existing photo, not create a new one. 
+
+          Only include previous edit history if required for context.
+          
+          Return only the standalone prompt, no intro.
+          `,
+          },
+          { role: "user", content: prompt },
+        ],
+      }
+    );
+    console.log({prompt, response});
+    return response;
+  }
+
   @callable()
   async editCurrentImage({ prompt }: { prompt: string }) {
+    const generatedPrompt = await this.generateEditPromptInContext({ prompt });
     const replicate = new Replicate({
       auth: env.REPLICATE_API_TOKEN,
     });
@@ -69,7 +101,7 @@ export class ImageAgent extends Agent<Env, ImageState> {
     }
     const input = {
       image: [await obj.blob()],
-      prompt,
+      prompt: generatedPrompt,
       go_fast: true,
       aspect_ratio: "match_input_image",
       output_format: "png",
@@ -94,15 +126,15 @@ export class ImageAgent extends Agent<Env, ImageState> {
     );
     const edits = this.state.edits;
     edits.push({
-        prompt,
-        imageFileName,
-        basedOnImageFileName: this.state.currentImageFileName as string,
-        createdAt: new Date().toISOString(),
+      prompt,
+      imageFileName,
+      basedOnImageFileName: this.state.currentImageFileName as string,
+      createdAt: new Date().toISOString(),
     });
     this.setState({
-        ...this.state,
-        edits,
-        currentImageFileName: imageFileName
-    })
+      ...this.state,
+      edits,
+      currentImageFileName: imageFileName,
+    });
   }
 }
