@@ -1,41 +1,27 @@
-import { Agent } from "agents";
+import { Agent, callable } from "agents";
 import Replicate from "replicate";
+import { createImageId, readableStreamToArrayBuffer } from "../utils";
 import { env } from "cloudflare:workers";
+
+type ImageEdit = {
+  prompt: string;
+  basedOnImageFileName: string;
+  imageFileName: string;
+  createdAt: string;
+};
 
 export type ImageState = {
   initialPrompt?: string;
   currentImageFileName?: string;
-  editPrompts: string[];
+  edits: ImageEdit[];
   createdAt: string;
 };
-
-async function readableStreamToArrayBuffer(stream: ReadableStream) {
-  const reader = stream.getReader();
-  const chunks: Uint8Array[] = [];
-  let totalLength = 0;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    totalLength += value.length;
-  }
-
-  const result = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const chunk of chunks) {
-    result.set(chunk, offset);
-    offset += chunk.length;
-  }
-
-  return result.buffer;
-}
 
 
 export class ImageAgent extends Agent<Env, ImageState> {
   initialState: ImageState = {
     createdAt: new Date().toISOString(),
-    editPrompts: [],
+    edits: [],
   };
 
   async createImage({ prompt }: { prompt: string }) {
@@ -52,19 +38,70 @@ export class ImageAgent extends Agent<Env, ImageState> {
       }
     );
 
-    const imageFileName = `${this.name}-0.png`;
+    const imageFileName = `${this.name}.png`;
     const stream = output instanceof Response ? output.body : output; // if it's already a ReadableStream
 
-    await env.IMAGES.put(imageFileName, await readableStreamToArrayBuffer(stream as ReadableStream), {
+    await env.IMAGES.put(
+      imageFileName,
+      await readableStreamToArrayBuffer(stream as ReadableStream),
+      {
         httpMetadata: {
-            contentType: "image/png"
-        }
-    });
+          contentType: "image/png",
+        },
+      }
+    );
 
     this.setState({
       ...this.state,
       currentImageFileName: imageFileName,
       initialPrompt: prompt,
     });
+  }
+
+  @callable()
+  async editCurrentImage({ prompt }: { prompt: string }) {
+    const replicate = new Replicate({
+      auth: env.REPLICATE_API_TOKEN,
+    });
+    const obj = await env.IMAGES.get(this.state.currentImageFileName as string);
+    if (obj === null) {
+      throw new Error("Image not found");
+    }
+    const input = {
+      image: [await obj.blob()],
+      prompt,
+      go_fast: true,
+      aspect_ratio: "match_input_image",
+      output_format: "png",
+      output_quality: 95,
+    };
+
+    const outputs = await replicate.run("qwen/qwen-image-edit-plus", { input });
+    const output = outputs[0];
+    const editImageId = createImageId(prompt);
+    const imageFileName = `edits/${this.name}/${editImageId}.png`;
+    const stream = output instanceof Response ? output.body : output; // if it's already a ReadableStream
+
+    await env.IMAGES.put(
+      imageFileName,
+      await readableStreamToArrayBuffer(stream as ReadableStream),
+      {
+        httpMetadata: {
+          contentType: "image/png",
+        },
+      }
+    );
+    const edits = this.state.edits;
+    edits.push({
+        prompt,
+        imageFileName,
+        basedOnImageFileName: this.state.currentImageFileName as string,
+        createdAt: new Date().toISOString(),
+    });
+    this.setState({
+        ...this.state,
+        edits,
+        currentImageFileName: imageFileName
+    })
   }
 }
