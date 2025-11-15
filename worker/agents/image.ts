@@ -58,34 +58,39 @@ export class ImageAgent extends Agent<Env, ImageState> {
   }
 
   async generateEditPromptInContext({ prompt }: { prompt: string }) {
-    const { response } = await env.AI.run(
-      "@cf/meta/llama-4-scout-17b-16e-instruct",
+    const replicate = new Replicate({
+      auth: env.REPLICATE_API_TOKEN,
+    });
+
+    const system_instruction = `Listed below are specific edits that were requested to be made to an image. 
+      Your job is to generate a new single prompt that will maintain the context of what the user is attempting to do edit wise.
+      <OriginalPrompt>
+      ${this.state.initialPrompt}
+      </OriginalPrompt>
+      <Edits>
+      ${this.state.edits.map((e) => e.prompt).join("\n\n")}
+      </Edits>
+      The user will provide you with an edit request, use the edits to create a new contextual prompt.
+
+      Reminder the prompt should be to edit an existing photo, not create a new one. 
+
+      Only include previous edit history if required for context.
+      
+      Return only the standalone prompt, no intro.`
+
+    const items = await replicate.run(
+      "google/gemini-2.5-flash",
       {
-        messages: [
-          {
-            role: "system",
-            content: `Listed below are specific edits that were requested to be made to an image. 
-          Your job is to generate a new single prompt that will maintain the context of what the user is attempting to do edit wise.
-          <OriginalPrompt>
-          ${this.state.initialPrompt}
-          </OriginalPrompt>
-          <Edits>
-          ${this.state.edits.map((e) => e.prompt).join("\n\n")}
-          </Edits>
-          The user will provide you with an edit request, use the edits to create a new contextual prompt.
-
-          Reminder the prompt should be to edit an existing photo, not create a new one. 
-
-          Only include previous edit history if required for context.
-          
-          Return only the standalone prompt, no intro.
-          `,
-          },
-          { role: "user", content: prompt },
-        ],
+        input: {
+          prompt,
+          system_instruction
+        },
       }
     );
-    console.log({prompt, response});
+
+    // Fall back to original prompt if failure
+    const response = items[0] ?? prompt
+
     return response;
   }
 
