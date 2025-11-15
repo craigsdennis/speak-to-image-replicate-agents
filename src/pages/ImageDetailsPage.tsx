@@ -2,44 +2,25 @@ import { useEffect, useMemo, useState } from 'react'
 import { PageShell } from './PageShell'
 import type { ImageRecord } from './types'
 
+import { useAgent } from 'agents/react';
+import type {ImageAgent, ImageState} from "../../worker/agents/image"
+
 export function ImageDetailsPage({ imageId }: { imageId: string }) {
   const [imageRecord, setImageRecord] = useState<ImageRecord | null>(null)
-  const [status, setStatus] = useState<'loading' | 'error' | 'ready'>('loading')
+  const [initialPrompt, setInitialPrompt] = useState<string>();
+  const [currentImageFileName, setCurrentImageFileName] = useState<string>();
+
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    let isMounted = true
-    const fetchImage = async () => {
-      setStatus('loading')
-      setError(null)
-
-      try {
-        const response = await fetch(`/api/images/${encodeURIComponent(imageId)}`)
-        const payload = await response.json().catch(() => null)
-
-        if (!response.ok) {
-          throw new Error(payload?.error ?? 'Image not found.')
-        }
-
-        if (isMounted) {
-          setImageRecord(payload)
-          setStatus('ready')
-        }
-      } catch (err) {
-        if (isMounted) {
-          setError(err instanceof Error ? err.message : 'Unable to load image info.')
-          setStatus('error')
-        }
-      }
-    }
-
-    void fetchImage()
-
-    return () => {
-      isMounted = false
-    }
-  }, [imageId])
-
+  const agent = useAgent<ImageAgent, ImageState>({
+    agent: "image-agent",
+    name: imageId,
+    onStateUpdate(state) {
+      setInitialPrompt(state.initialPrompt);
+      setCurrentImageFileName(state.currentImageFileName);
+    },
+  })
+  
   const createdAtDisplay = useMemo(() => {
     if (!imageRecord?.createdAt) return ''
     try {
@@ -57,10 +38,9 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
       <section className="flex flex-col gap-8 rounded-3xl bg-white/95 p-8 text-slate-900 shadow-2xl ring-1 ring-white/10">
         <header className="flex flex-col gap-2">
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-indigo-500">
-            Image {imageId || 'unknown'}
+            <img src={`/api/images/` + currentImageFileName} alt={initialPrompt}/>
           </p>
-          <h1 className="text-3xl font-semibold text-slate-950">Your image workspace</h1>
-          <p className="text-base text-slate-500">Save this URL to return to the generated image once processing completes.</p>
+          <h1 className="text-3xl font-semibold text-slate-950">{initialPrompt}</h1>
         </header>
 
         {status === 'loading' && <p className="text-sm text-slate-500">Loading image details…</p>}
