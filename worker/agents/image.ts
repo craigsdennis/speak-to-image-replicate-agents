@@ -77,6 +77,7 @@ export class ImageAgent extends Agent<Env, ImageState> {
     };
 
     const outputs = await replicate.run("qwen/qwen-image-edit-plus", { input });
+    // @ts-expect-error - This isn't typed yet
     const output = outputs[0];
     const editImageId = createImageId(prompt);
     const imageFileName = `edits/${this.name}/${editImageId}.png`;

@@ -7,7 +7,9 @@
 	"name": "speak-to-image",
 	"main": "worker/index.ts",
 	"compatibility_date": "2025-11-13",
-	"compatibility_flags": ["nodejs_compat"],
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
 	"assets": {
 		"not_found_handling": "single-page-application"
 	},
@@ -15,19 +17,27 @@
 		"enabled": true
 	},
 	"durable_objects": {
-		"bindings": [{
-			"name": "ImageAgent",
-			"class_name": "ImageAgent"
-		}]
+		"bindings": [
+			{
+				"name": "ImageAgent",
+				"class_name": "ImageAgent"
+			}
+		]
 	},
-	"migrations": [{
-		"tag": "v1",
-		"new_sqlite_classes": ["ImageAgent"]
-	}],
-	"r2_buckets": [{
-		"binding": "IMAGES",
-		"bucket_name": "images"
-	}]
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": [
+				"ImageAgent"
+			]
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "IMAGES",
+			"bucket_name": "images"
+		}
+	]
 	/**
 	 * Smart Placement
 	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

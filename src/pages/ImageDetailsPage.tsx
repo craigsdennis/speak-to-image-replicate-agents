@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { type FormEvent, useMemo, useState } from "react";
 import { useAgent } from "agents/react";
 import { PageShell } from "./PageShell";
 
