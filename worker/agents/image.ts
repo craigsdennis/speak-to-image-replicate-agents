@@ -5,6 +5,7 @@ import { env } from "cloudflare:workers";
 
 type ImageEdit = {
   prompt: string;
+  generatedPrompt: string;
   basedOnImageFileName: string;
   imageFileName: string;
   createdAt: string;
@@ -129,9 +130,11 @@ export class ImageAgent extends Agent<Env, ImageState> {
         },
       }
     );
+
     const edits = this.state.edits;
     edits.push({
       prompt,
+      generatedPrompt,
       imageFileName,
       basedOnImageFileName: this.state.currentImageFileName as string,
       createdAt: new Date().toISOString(),

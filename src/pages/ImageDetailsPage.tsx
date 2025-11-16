@@ -132,12 +132,13 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
                         }).format(new Date(edit.createdAt))}
                       </span>
                     </div>
-                    <p className="text-base text-slate-900">{edit.prompt}</p>
                     <img
                       src={`/api/images/${edit.imageFileName}`}
                       alt={edit.prompt}
                       className="rounded-xl border border-slate-200"
                     />
+                    <p className="text-base text-slate-900"><span className="font-semibold">Refinement:</span> {edit.prompt}</p>
+                    <p className="text-base text-slate-900"><span className="font-semibold">Generated prompt:</span> {edit.generatedPrompt}</p>
                   </li>
                 ))}
               </ol>
