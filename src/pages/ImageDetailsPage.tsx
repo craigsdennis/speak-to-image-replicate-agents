@@ -1,4 +1,11 @@
-import { type FormEvent, useMemo, useState } from "react";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useAgent } from "agents/react";
 import { PageShell } from "./PageShell";
 
@@ -12,6 +19,13 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
   const [editPromptInput, setEditPromptInput] = useState<string>("");
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingError, setRecordingError] = useState<string | null>(null);
+
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const processorNodeRef = useRef<AudioWorkletNode | ScriptProcessorNode | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
 
   const agent = useAgent<ImageAgent, ImageState>({
     agent: "image-agent",
@@ -34,6 +48,115 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
     if (edits.length === 1) return "1 edit";
     return `${edits.length} edits`;
   }, [edits.length]);
+
+  const sendAudioChunk = useCallback(
+    async (buffer: ArrayBuffer) => {
+      try {
+        const base64 = arrayBufferToBase64(buffer);
+        agent.send(
+          JSON.stringify({
+            type: "audio-chunk",
+            data: base64,
+            imageId,
+            mimeType: "audio/pcm;rate=16000",
+          })
+        );
+      } catch (error) {
+        console.error("Failed to send audio chunk", error);
+        setRecordingError(
+          error instanceof Error
+            ? error.message
+            : "Unable to send audio chunk."
+        );
+      }
+    },
+    [agent, imageId]
+  );
+
+  const stopRecording = useCallback(() => {
+    processorNodeRef.current?.disconnect();
+    sourceNodeRef.current?.disconnect();
+    processorNodeRef.current = null;
+    sourceNodeRef.current = null;
+    audioContextRef.current?.close().catch(() => {});
+    audioContextRef.current = null;
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+    mediaStreamRef.current = null;
+    setIsRecording(false);
+    try {
+      agent.send(
+        JSON.stringify({
+          type: "audio-complete",
+          imageId,
+        })
+      );
+    } catch (error) {
+      console.warn("Unable to notify agent about recording stop", error);
+    }
+  }, [agent, imageId]);
+
+  const startRecording = useCallback(async () => {
+    if (typeof window === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setRecordingError("Microphone access is not supported in this browser.");
+      return;
+    }
+
+    setRecordingError(null);
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      const audioContext = new window.AudioContext({ sampleRate: 16000 });
+      audioContextRef.current = audioContext;
+      const source = audioContext.createMediaStreamSource(stream);
+      sourceNodeRef.current = source;
+
+      let processor: ScriptProcessorNode | AudioWorkletNode;
+      if (audioContext.audioWorklet) {
+        try {
+          await audioContext.audioWorklet.addModule(
+            URL.createObjectURL(new Blob([workletProcessor], { type: "text/javascript" }))
+          );
+          processor = new AudioWorkletNode(audioContext, "pcm16-worklet");
+        } catch {
+          processor = audioContext.createScriptProcessor(4096, 1, 1);
+        }
+      } else {
+        processor = audioContext.createScriptProcessor(4096, 1, 1);
+      }
+
+      processorRefSetup({
+        processor,
+        source,
+        sendAudioChunk,
+        setRecordingError,
+      });
+
+      processorNodeRef.current = processor;
+      setIsRecording(true);
+      agent.send(
+        JSON.stringify({
+          type: "audio-start",
+          imageId,
+          mimeType: "audio/pcm;rate=16000",
+        })
+      );
+    } catch (error) {
+      console.error("Unable to start recording", error);
+      setRecordingError(
+        error instanceof Error
+          ? error.message
+          : "Unable to access the microphone."
+      );
+      stopRecording();
+    }
+  }, [agent, imageId, sendAudioChunk, stopRecording]);
+
+  useEffect(() => {
+    return () => {
+      stopRecording();
+    };
+  }, [stopRecording]);
 
   async function handleEditCurrentImage(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
@@ -106,6 +229,38 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
           </div>
         </form>
 
+        <section className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-700">Voice edits (beta)</p>
+              <p className="text-xs text-slate-500">
+                Stream audio to the agent in real time. We’ll forward it to Deepgram soon.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={isRecording ? stopRecording : startRecording}
+              className={`inline-flex items-center justify-center rounded-full px-4 py-2 text-xs font-semibold text-white transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 ${
+                isRecording
+                  ? "bg-rose-500 hover:bg-rose-400"
+                  : "bg-indigo-600 hover:bg-indigo-500"
+              }`}
+            >
+              {isRecording ? "Stop streaming" : "Start voice stream"}
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            {isRecording
+              ? "Listening… speak your instructions."
+              : "Click start to capture microphone audio."}
+          </p>
+          {recordingError && (
+            <p className="mt-2 text-xs font-semibold text-rose-500">
+              {recordingError}
+            </p>
+          )}
+        </section>
+
         <details className="rounded-2xl border border-slate-100 bg-white/80" role="group">
           <summary className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-slate-700">
             <span>Edit history</span>
@@ -163,4 +318,72 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
       </section>
     </PageShell>
   );
+}
+
+const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
+  if (typeof window === "undefined") return "";
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i += 1) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return window.btoa(binary);
+};
+
+const workletProcessor = `
+class PCM16Processor extends AudioWorkletProcessor {
+  process(inputs) {
+    const input = inputs[0];
+    if (!input || !input[0]) return true;
+    const channelData = input[0];
+    const pcm = new Int16Array(channelData.length);
+    for (let i = 0; i < channelData.length; i += 1) {
+      const sample = Math.max(-1, Math.min(1, channelData[i]));
+      pcm[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+    }
+    this.port.postMessage(pcm.buffer, [pcm.buffer]);
+    return true;
+  }
+}
+registerProcessor('pcm16-worklet', PCM16Processor);
+`;
+
+function processorRefSetup({
+  processor,
+  source,
+  sendAudioChunk,
+  setRecordingError,
+}: {
+  processor: ScriptProcessorNode | AudioWorkletNode;
+  source: MediaStreamAudioSourceNode;
+  sendAudioChunk: (buffer: ArrayBuffer) => Promise<void>;
+  setRecordingError: (value: string | null) => void;
+}) {
+  if (processor instanceof AudioWorkletNode) {
+    processor.port.onmessage = (event) => {
+      const buffer = event.data as ArrayBuffer;
+      void sendAudioChunk(buffer);
+    };
+  } else {
+    processor.onaudioprocess = (event) => {
+      const channelData = event.inputBuffer.getChannelData(0);
+      const pcm = new Int16Array(channelData.length);
+      for (let i = 0; i < channelData.length; i += 1) {
+        const sample = Math.max(-1, Math.min(1, channelData[i]));
+        pcm[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+      }
+      void sendAudioChunk(pcm.buffer);
+    };
+  }
+
+  try {
+    source.connect(processor);
+    processor.connect(source.context.destination);
+  } catch (error) {
+    console.error("Unable to wire audio processor", error);
+    setRecordingError(
+      error instanceof Error ? error.message : "Unable to start the audio processor."
+    );
+  }
 }

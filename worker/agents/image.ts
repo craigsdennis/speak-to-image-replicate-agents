@@ -1,6 +1,10 @@
-import { Agent, callable } from "agents";
+import { Agent, callable, type Connection, type WSMessage } from "agents";
 import Replicate from "replicate";
-import { createImageId, readableStreamToArrayBuffer } from "../utils";
+import {
+  base64ToArrayBuffer,
+  createImageId,
+  readableStreamToArrayBuffer,
+} from "../utils";
 import { env } from "cloudflare:workers";
 
 type ImageEdit = {
@@ -19,10 +23,50 @@ export type ImageState = {
 };
 
 export class ImageAgent extends Agent<Env, ImageState> {
+  _deepgramSocket?: WebSocket = undefined;
   initialState: ImageState = {
     createdAt: new Date().toISOString(),
     edits: [],
   };
+
+  async getDeepgramSocket() {
+    if (this._deepgramSocket === undefined) {
+      const response = await env.AI.run(
+        "@cf/deepgram/flux",
+        {
+          encoding: "linear16",
+          sample_rate: "16000",
+        },
+        {
+          websocket: true,
+        }
+      );
+      if (response.webSocket !== null) {
+        this._deepgramSocket = response.webSocket;
+        this._deepgramSocket.accept();
+      }
+    }
+    return this._deepgramSocket;
+  }
+
+  async onMessage(_connection: Connection, message: WSMessage) {
+    console.log(`Message received ${message.toString().length} chars`);
+    if (typeof message === "string") {
+      const msg = JSON.parse(message);
+      const deepgramSocket = await this.getDeepgramSocket();
+      deepgramSocket?.addEventListener("message", (event) => {
+        // TODO: translation
+        const response = JSON.parse(event.data);
+        const {type, words, transcript, sequence_id} = response;
+        console.log({type, transcript, words, sequence_id});
+      });
+      if (msg.type === "audio-chunk") {
+        console.log("streaming decoded chunk to Deepgram");
+        const buffer = base64ToArrayBuffer(msg.data);
+        deepgramSocket?.send(buffer);
+      }
+    }
+  }
 
   async createImage({ prompt }: { prompt: string }) {
     const replicate = new Replicate({
@@ -77,20 +121,17 @@ export class ImageAgent extends Agent<Env, ImageState> {
 
       Only include previous edit history if required for context.
       
-      Return only the standalone prompt, no intro.`
+      Return only the standalone prompt, no intro.`;
 
-    const items = await replicate.run(
-      "google/gemini-2.5-flash",
-      {
-        input: {
-          prompt,
-          system_instruction
-        },
-      }
-    );
+    const items = await replicate.run("google/gemini-2.5-flash", {
+      input: {
+        prompt,
+        system_instruction,
+      },
+    });
 
     // Fall back to original prompt if failure
-    const response = items[0] ?? prompt
+    const response = items[0] ?? prompt;
 
     return response;
   }
