@@ -37,6 +37,7 @@ export class ImageAgent extends Agent<Env, ImageState> {
   async getDeepgramSocket() {
     if (this._deepgramSocket === undefined) {
       const response = await env.AI.run(
+        // @ts-expect-error - Deepgram Flux not in catalog?
         "@cf/deepgram/flux",
         {
           encoding: "linear16",
@@ -63,7 +64,11 @@ export class ImageAgent extends Agent<Env, ImageState> {
   }
 
   async onTranscription(transcription: string) {
-    await this.editCurrentImage({prompt: transcription});
+    if (this.state.activeEdit === null) {
+      await this.editCurrentImage({prompt: transcription});
+    } else {
+      console.warn(`Heard "${transcription}" in middle of edit`);
+    }
   }
 
   async onMessage(_connection: Connection, message: WSMessage) {
