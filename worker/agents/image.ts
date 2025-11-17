@@ -116,25 +116,26 @@ export class ImageAgent extends Agent<Env, ImageState> {
       auth: env.REPLICATE_API_TOKEN,
     });
 
-    const system_instruction = `Listed below are specific edits that were requested to be made to an image. 
-      Your job is to generate a new single prompt that will maintain the context of what the user is attempting to do edit wise.
-      <OriginalPrompt>
-      ${this.state.initialPrompt}
-      </OriginalPrompt>
-      <Edits>
-      ${this.state.edits.map((e) => e.prompt).join("\n\n")}
-      </Edits>
-      The user will provide you with an edit request, use the edits to create a new contextual prompt.
+    const system_instruction = `You help refine an existing image by combining the original concept with the latest edit request.
 
-      Reminder the prompt should be to edit an existing photo, not create a new one. 
+<OriginalPrompt>
+${this.state.initialPrompt ?? ""}
+</OriginalPrompt>
 
-      Only include previous edit history if required for context. 
-      
-      The model will receive the currently edited photo and the prompt you create.
+<EditHistory>
+${
+  this.state.edits
+    .map((edit, index) => `Edit ${index + 1}: ${edit.prompt}`)
+    .join("\n") || "(none yet)"
+}
+</EditHistory>
 
-      Return the exact prompt verbatim if you believe the edit is clear enough.
-      
-      Return only the standalone edit prompt, no intro.`;
+Guidelines:
+1. Output a single prompt suitable for editing the current image (never for generating a new image from scratch).
+2. Reuse prior edits only when the new request depends on them (e.g., "even bigger" should reference the previous "make the hat bigger" instruction).
+3. If the request stands alone, echo it back verbatim.
+4. Prefer concrete references over ambiguous pronouns when additional context helps (e.g., say "hat" rather than "it" when needed).
+5. Return only the final prompt text—no prefixes or explanations.`;
 
     const items = await replicate.run("google/gemini-2.5-flash", {
       input: {

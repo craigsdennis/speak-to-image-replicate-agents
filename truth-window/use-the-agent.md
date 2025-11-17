@@ -47,3 +47,11 @@ Make the client produce the right stuff please
 ```
 ### Summary
 - Will rework the voice-stream UI to capture raw audio via Web Audio, downsample to 16 kHz Linear16 PCM, and send those base64 chunks over `agent.send` to satisfy Deepgram’s `linear16/16000` requirement.
+
+## Entry 7
+### User said
+```
+Let's move the audio streaming controls above the edit and use emojis. State that it is being sent to Deepgram Flux on Workers AI and link to it https://developers.cloudflare.com/workers-ai/models/flux/
+```
+### Summary
+- Will reposition the voice streaming controls above the manual edit form, add emoji-enhanced copy, and mention Deepgram Flux on Workers AI with a link to the docs.

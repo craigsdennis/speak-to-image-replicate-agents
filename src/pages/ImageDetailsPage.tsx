@@ -217,6 +217,47 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
           </div>
         )}
 
+        <section className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-700">🎙️ Voice edits</p>
+              <p className="text-xs text-slate-500">
+                Streaming to{' '}
+                <a
+                  className="font-semibold text-indigo-600 underline-offset-2 hover:underline"
+                  href="https://developers.cloudflare.com/workers-ai/models/flux/"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Deepgram Flux on Workers AI
+                </a>
+                . Speak your instructions and we’ll feed them in live.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={isRecording ? stopRecording : startRecording}
+              className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-xs font-semibold text-white transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 ${
+                isRecording
+                  ? "bg-rose-500 hover:bg-rose-400"
+                  : "bg-indigo-600 hover:bg-indigo-500"
+              }`}
+            >
+              {isRecording ? '🛑 Stop stream' : '🚀 Start voice stream'}
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            {isRecording
+              ? "Listening… describe how you’d like the image to evolve."
+              : "Click start to capture your microphone and describe edits aloud."}
+          </p>
+          {recordingError && (
+            <p className="mt-2 text-xs font-semibold text-rose-500">
+              {recordingError}
+            </p>
+          )}
+        </section>
+
         <form className="flex flex-col gap-3" onSubmit={handleEditCurrentImage}>
           <label className="text-sm font-semibold text-slate-600" htmlFor="editPrompt">
             Refine this image
@@ -244,38 +285,6 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
             </button>
           </div>
         </form>
-
-        <section className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-slate-700">Voice edits (beta)</p>
-              <p className="text-xs text-slate-500">
-                Stream audio to the agent in real time. We’ll forward it to Deepgram soon.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={isRecording ? stopRecording : startRecording}
-              className={`inline-flex items-center justify-center rounded-full px-4 py-2 text-xs font-semibold text-white transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 ${
-                isRecording
-                  ? "bg-rose-500 hover:bg-rose-400"
-                  : "bg-indigo-600 hover:bg-indigo-500"
-              }`}
-            >
-              {isRecording ? "Stop streaming" : "Start voice stream"}
-            </button>
-          </div>
-          <p className="mt-2 text-xs text-slate-500">
-            {isRecording
-              ? "Listening… speak your instructions."
-              : "Click start to capture microphone audio."}
-          </p>
-          {recordingError && (
-            <p className="mt-2 text-xs font-semibold text-rose-500">
-              {recordingError}
-            </p>
-          )}
-        </section>
 
         <details className="rounded-2xl border border-slate-100 bg-white/80" role="group">
           <summary className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-slate-700">
