@@ -16,6 +16,7 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
   const [currentImageFileName, setCurrentImageFileName] = useState<string>();
   const [createdAtDisplay, setCreatedAtDisplay] = useState<string>();
   const [edits, setEdits] = useState<ImageState["edits"]>([]);
+  const [activeEdit, setActiveEdit] = useState<ImageState["activeEdit"]>(null);
   const [editPromptInput, setEditPromptInput] = useState<string>("");
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -39,6 +40,7 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
       }).format(new Date(state.createdAt));
       setCreatedAtDisplay(createdAtDisplay);
       setEdits(state.edits ?? []);
+      setActiveEdit(state.activeEdit ?? null);
     },
   });
 
@@ -188,12 +190,26 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
           </h1>
         </header>
         {currentImageFileName ? (
-          <div className="overflow-hidden rounded-2xl border border-slate-100 bg-slate-50">
+          <div className="relative overflow-hidden rounded-2xl border border-slate-100 bg-slate-50" aria-busy={Boolean(activeEdit)}>
             <img
               src={`/api/images/${currentImageFileName}`}
               alt={initialPrompt}
-              className="block aspect-square w-full object-cover"
+              className={`block aspect-square w-full object-cover transition-opacity duration-300 ${
+                activeEdit ? "opacity-60" : "opacity-100"
+              }`}
             />
+            {activeEdit && (
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-950/70 px-6 text-center text-slate-100">
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-200">
+                    Applying edit…
+                  </p>
+                  <p className="text-base font-semibold leading-snug text-white">
+                    {activeEdit.prompt}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex aspect-square items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500">

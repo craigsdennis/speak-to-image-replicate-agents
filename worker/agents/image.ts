@@ -20,6 +20,10 @@ export type ImageState = {
   currentImageFileName?: string;
   edits: ImageEdit[];
   createdAt: string;
+  activeEdit?: {
+    prompt: string;
+    startedAt: string;
+  } | null;
 };
 
 export class ImageAgent extends Agent<Env, ImageState> {
@@ -27,6 +31,7 @@ export class ImageAgent extends Agent<Env, ImageState> {
   initialState: ImageState = {
     createdAt: new Date().toISOString(),
     edits: [],
+    activeEdit: null,
   };
 
   async getDeepgramSocket() {
@@ -142,6 +147,15 @@ export class ImageAgent extends Agent<Env, ImageState> {
 
   @callable()
   async editCurrentImage({ prompt }: { prompt: string }) {
+    const startedAt = new Date().toISOString();
+    this.setState({
+      ...this.state,
+      activeEdit: {
+        prompt,
+        startedAt,
+      },
+    });
+
     //const generatedPrompt = await this.generateEditPromptInContext({ prompt });
     const generatedPrompt = prompt;
     const replicate = new Replicate({
@@ -160,35 +174,46 @@ export class ImageAgent extends Agent<Env, ImageState> {
       output_quality: 95,
     };
 
-    const outputs = await replicate.run("qwen/qwen-image-edit-plus", { input });
-    // @ts-expect-error - This isn't typed yet
-    const output = outputs[0];
-    const editImageId = createImageId(prompt);
-    const imageFileName = `edits/${this.name}/${editImageId}.png`;
-    const stream = output instanceof Response ? output.body : output; // if it's already a ReadableStream
+    try {
+      const outputs = await replicate.run("qwen/qwen-image-edit-plus", { input });
+      // @ts-expect-error - This isn't typed yet
+      const output = outputs[0];
+      const editImageId = createImageId(prompt);
+      const imageFileName = `edits/${this.name}/${editImageId}.png`;
+      const stream = output instanceof Response ? output.body : output; // if it's already a ReadableStream
 
-    await env.IMAGES.put(
-      imageFileName,
-      await readableStreamToArrayBuffer(stream as ReadableStream),
-      {
-        httpMetadata: {
-          contentType: "image/png",
+      await env.IMAGES.put(
+        imageFileName,
+        await readableStreamToArrayBuffer(stream as ReadableStream),
+        {
+          httpMetadata: {
+            contentType: "image/png",
+          },
+        }
+      );
+
+      const edits = [
+        ...this.state.edits,
+        {
+          prompt,
+          generatedPrompt,
+          imageFileName,
+          basedOnImageFileName: this.state.currentImageFileName as string,
+          createdAt: new Date().toISOString(),
         },
-      }
-    );
-
-    const edits = this.state.edits;
-    edits.push({
-      prompt,
-      generatedPrompt,
-      imageFileName,
-      basedOnImageFileName: this.state.currentImageFileName as string,
-      createdAt: new Date().toISOString(),
-    });
-    this.setState({
-      ...this.state,
-      edits,
-      currentImageFileName: imageFileName,
-    });
+      ];
+      this.setState({
+        ...this.state,
+        edits,
+        currentImageFileName: imageFileName,
+        activeEdit: null,
+      });
+    } catch (error) {
+      this.setState({
+        ...this.state,
+        activeEdit: null,
+      });
+      throw error;
+    }
   }
 }
