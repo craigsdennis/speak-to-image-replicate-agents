@@ -128,9 +128,13 @@ export class ImageAgent extends Agent<Env, ImageState> {
 
       Reminder the prompt should be to edit an existing photo, not create a new one. 
 
-      Only include previous edit history if required for context. The model will receive the currently edited photo and the latest instructions.
+      Only include previous edit history if required for context. 
       
-      Return only the standalone prompt, no intro.`;
+      The model will receive the currently edited photo and the prompt you create.
+
+      Return the exact prompt verbatim if you believe the edit is clear enough.
+      
+      Return only the standalone edit prompt, no intro.`;
 
     const items = await replicate.run("google/gemini-2.5-flash", {
       input: {
@@ -156,8 +160,8 @@ export class ImageAgent extends Agent<Env, ImageState> {
       },
     });
 
-    //const generatedPrompt = await this.generateEditPromptInContext({ prompt });
-    const generatedPrompt = prompt;
+    const generatedPrompt = await this.generateEditPromptInContext({ prompt });
+    //const generatedPrompt = prompt;
     const replicate = new Replicate({
       auth: env.REPLICATE_API_TOKEN,
     });
