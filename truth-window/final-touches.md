@@ -71,3 +71,35 @@ Awesome that looks good. Let's write that to the truth window and commit
 ```
 ### Summary
 - Logged the waveform refinements and will commit the updated UI plus Truth Window notes.
+
+## Entry 10
+### User said
+```
+On the front-end when there is an active edit happening, make sure the recording wave looks paused. Backend already handled
+```
+### Summary
+- Now stops voice streaming and flattens the waveform whenever an edit is active so the UI shows recording is paused.
+
+## Entry 11
+### User said
+```
+ImageDetailsPage.tsx:83 Uncaught ReferenceError: Cannot access 'stopRecording' before initialization...
+```
+### Summary
+- Moved the `useEffect` that references `stopRecording` below its definition to fix the temporal-dead-zone error when rendering `ImageDetailsPage`.
+
+## Entry 12
+### User said
+```
+Oh no I don't want it to stop the voice stream. I just want to make it appear we aren't sending voice. Do not stop the stream
+```
+### Summary
+- Will revert the auto-stop behavior; the mic keeps streaming, but the UI will flatten/gray out the waveform while an edit runs so it *appears* paused.
+
+## Entry 13
+### User said
+```
+How bout while stream is rolling, just do a pause sign ⏸︎ and "Waiting for Edit to Complete" on the button instead of showing start stream.
+```
+### Summary
+- Updated the voice-stream button to show a ⏸︎ pause label while edits are running, even though streaming continues silently.

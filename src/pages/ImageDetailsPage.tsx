@@ -52,8 +52,10 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
     return `${edits.length} edits`;
   }, [edits.length]);
 
+  const showActiveWave = isRecording && !activeEdit;
+
   const voiceWavePath = useMemo(() => {
-    if (voiceWave.length < 2) {
+    if (!showActiveWave || voiceWave.length < 2) {
       return "M0,30 L100,30";
     }
     const step = 100 / (voiceWave.length - 1);
@@ -72,7 +74,13 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
         return `L ${idx * step} ${y}`;
       });
     return `M0,30 ${upper.join(" ")} ${lower.join(" ")} Z`;
-  }, [voiceWave]);
+  }, [voiceWave, showActiveWave]);
+
+  useEffect(() => {
+    if (!isRecording) {
+      setVoiceWave([]);
+    }
+  }, [isRecording]);
 
   const sendAudioChunk = useCallback(
     async (buffer: ArrayBuffer) => {
@@ -271,28 +279,41 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
               onClick={isRecording ? stopRecording : startRecording}
               className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-xs font-semibold text-white transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 ${
                 isRecording
-                  ? "bg-rose-500 hover:bg-rose-400"
+                  ? activeEdit
+                    ? "bg-amber-500 hover:bg-amber-400"
+                    : "bg-rose-500 hover:bg-rose-400"
                   : "bg-indigo-600 hover:bg-indigo-500"
               }`}
             >
-              {isRecording ? '🛑 Stop stream' : '🚀 Start voice stream'}
+              {isRecording
+                ? activeEdit
+                  ? '⏸︎ Waiting for edit to complete'
+                  : '🛑 Stop stream'
+                : '🚀 Start voice stream'}
             </button>
           </div>
           <p className="mt-2 text-xs text-slate-500">
             {isRecording
-              ? "Listening… describe how you’d like the image to evolve."
+              ? activeEdit
+                ? "Streaming is live, but we're letting the current edit finish."
+                : "Listening… describe how you’d like the image to evolve."
               : "Click start to capture your microphone and describe edits aloud."}
           </p>
+          {recordingError && (
+            <p className="mt-2 text-xs font-semibold text-rose-500">
+              {recordingError}
+            </p>
+          )}
           <div className="mt-4 h-20 rounded-2xl bg-slate-900/5 px-2 py-2" aria-hidden>
             <svg viewBox="0 0 100 60" preserveAspectRatio="none" className="h-full w-full">
               <path
                 d={voiceWavePath}
-                fill={isRecording ? "url(#waveFillWarm)" : "none"}
-                stroke={isRecording ? "url(#waveStrokeWarm)" : "#fde68a"}
+                fill={showActiveWave ? "url(#waveFillWarm)" : "none"}
+                stroke={showActiveWave ? "url(#waveStrokeWarm)" : "#fde68a"}
                 strokeWidth="2.5"
                 strokeLinejoin="round"
                 strokeLinecap="round"
-                opacity={isRecording ? 0.95 : 0.35}
+                opacity={showActiveWave ? 0.95 : 0.15}
               />
               <defs>
                 <linearGradient id="waveStrokeWarm" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -306,11 +327,6 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
               </defs>
             </svg>
           </div>
-          {recordingError && (
-            <p className="mt-2 text-xs font-semibold text-rose-500">
-              {recordingError}
-            </p>
-          )}
         </section>
 
         <form className="flex flex-col gap-3" onSubmit={handleEditCurrentImage}>
