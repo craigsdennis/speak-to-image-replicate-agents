@@ -44,24 +44,28 @@ export class ImageAgent extends Agent<Env, ImageState> {
       if (response.webSocket !== null) {
         this._deepgramSocket = response.webSocket;
         this._deepgramSocket.accept();
+        this._deepgramSocket.addEventListener("message", (evt) => {
+          const response = JSON.parse(evt.data);
+          const { type, event, transcript } = response;
+          if (type === "TurnInfo" && event === "EndOfTurn" && transcript) {
+            this.onTranscription(transcript);
+          }
+      });
+
       }
     }
     return this._deepgramSocket;
   }
 
+  async onTranscription(transcription: string) {
+    await this.editCurrentImage({prompt: transcription});
+  }
+
   async onMessage(_connection: Connection, message: WSMessage) {
-    console.log(`Message received ${message.toString().length} chars`);
     if (typeof message === "string") {
       const msg = JSON.parse(message);
       const deepgramSocket = await this.getDeepgramSocket();
-      deepgramSocket?.addEventListener("message", (event) => {
-        // TODO: translation
-        const response = JSON.parse(event.data);
-        const {type, words, transcript, sequence_id} = response;
-        console.log({type, transcript, words, sequence_id});
-      });
       if (msg.type === "audio-chunk") {
-        console.log("streaming decoded chunk to Deepgram");
         const buffer = base64ToArrayBuffer(msg.data);
         deepgramSocket?.send(buffer);
       }
@@ -119,7 +123,7 @@ export class ImageAgent extends Agent<Env, ImageState> {
 
       Reminder the prompt should be to edit an existing photo, not create a new one. 
 
-      Only include previous edit history if required for context.
+      Only include previous edit history if required for context. The model will receive the currently edited photo and the latest instructions.
       
       Return only the standalone prompt, no intro.`;
 
@@ -138,7 +142,8 @@ export class ImageAgent extends Agent<Env, ImageState> {
 
   @callable()
   async editCurrentImage({ prompt }: { prompt: string }) {
-    const generatedPrompt = await this.generateEditPromptInContext({ prompt });
+    //const generatedPrompt = await this.generateEditPromptInContext({ prompt });
+    const generatedPrompt = prompt;
     const replicate = new Replicate({
       auth: env.REPLICATE_API_TOKEN,
     });
