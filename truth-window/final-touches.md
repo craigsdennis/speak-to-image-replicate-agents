@@ -111,3 +111,11 @@ Awesome I want the forms to submit on cmd or control enter
 ```
 ### Summary
 - Added Cmd/Ctrl+Enter hotkeys to both prompt forms so edit + create submissions fire instantly from the keyboard.
+
+## Entry 15
+### User said
+```
+Keep in the final-touches. Only show the edit history when one exists, not before.
+```
+### Summary
+- Hid the Edit history accordion until at least one edit exists so the UI stays cleaner for new images.

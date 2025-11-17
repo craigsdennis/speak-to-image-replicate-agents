@@ -363,17 +363,15 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
           </div>
         </form>
 
-        <details className="rounded-2xl border border-slate-100 bg-white/80" role="group">
-          <summary className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-slate-700">
-            <span>Edit history</span>
-            <span className="rounded-full bg-slate-900/10 px-3 py-1 text-xs font-medium text-slate-600">
-              {editCountLabel}
-            </span>
-          </summary>
-          <div className="space-y-4 border-t border-slate-100 px-4 py-4 text-sm text-slate-600">
-            {edits.length === 0 ? (
-              <p>No edits have been applied yet.</p>
-            ) : (
+        {edits.length > 0 && (
+          <details className="rounded-2xl border border-slate-100 bg-white/80" role="group">
+            <summary className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-slate-700">
+              <span>Edit history</span>
+              <span className="rounded-full bg-slate-900/10 px-3 py-1 text-xs font-medium text-slate-600">
+                {editCountLabel}
+              </span>
+            </summary>
+            <div className="space-y-4 border-t border-slate-100 px-4 py-4 text-sm text-slate-600">
               <ol className="space-y-4">
                 {edits.map((edit, index) => (
                   <li
@@ -399,9 +397,9 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
                   </li>
                 ))}
               </ol>
-            )}
-          </div>
-        </details>
+            </div>
+          </details>
+        )}
 
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
