@@ -1,6 +1,6 @@
 # Speak to Image
 
-An educational sandbox that walks through building a two-page React app backed by a Cloudflare Agent. The agent calls Replicate to generate/edit images while the client can stream real-time microphone audio to Deepgram Flux on Workers AI, letting you “speak” the next edit.
+An educational repo that shows off a React app backed by a Cloudflare Agent. The agent calls Replicate to generate/edit images while the client can stream real-time microphone audio to Deepgram Flux on Workers AI, letting you “speak” the next edit.
 
 ## What you will learn
 - How to scaffold a durable Cloudflare Agent (`worker/agents/image.ts`) that stores prompts, image edits, and handles callable methods.
@@ -43,8 +43,5 @@ An educational sandbox that walks through building a two-page React app backed b
 | `npm run build` | Type-check + production Vite build. |
 | `npm run deploy` | Build and push via `wrangler deploy`. |
 | `npm run cf-typegen` | Regenerate `worker-configuration.d.ts` after binding changes. |
-
-## Truth Window logs
-- The `truth-window/` directory captures AI-assisted sessions. Each Markdown file logs the user’s verbatim request and the resulting summary, making it easier to review how the assistant helped at each stage.
 
 Feel free to fork and adapt the pieces—this repo is meant to be dissected in workshops and classrooms.

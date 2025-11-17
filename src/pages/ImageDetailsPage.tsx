@@ -22,6 +22,7 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
   const [editError, setEditError] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingError, setRecordingError] = useState<string | null>(null);
+  const [voiceWave, setVoiceWave] = useState<number[]>([]);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
@@ -50,6 +51,28 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
     if (edits.length === 1) return "1 edit";
     return `${edits.length} edits`;
   }, [edits.length]);
+
+  const voiceWavePath = useMemo(() => {
+    if (voiceWave.length < 2) {
+      return "M0,30 L100,30";
+    }
+    const step = 100 / (voiceWave.length - 1);
+    const upper = voiceWave.map((level, index) => {
+      const amplitude = Math.max(1, level * 28);
+      const y = 30 - amplitude;
+      return `L ${index * step} ${y}`;
+    });
+    const lower = voiceWave
+      .slice()
+      .reverse()
+      .map((level, index) => {
+        const amplitude = Math.max(1, level * 28);
+        const idx = voiceWave.length - 1 - index;
+        const y = 30 + amplitude;
+        return `L ${idx * step} ${y}`;
+      });
+    return `M0,30 ${upper.join(" ")} ${lower.join(" ")} Z`;
+  }, [voiceWave]);
 
   const sendAudioChunk = useCallback(
     async (buffer: ArrayBuffer) => {
@@ -85,6 +108,7 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
     mediaStreamRef.current = null;
     setIsRecording(false);
+    setVoiceWave([]);
     try {
       agent.send(
         JSON.stringify({
@@ -104,6 +128,7 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
     }
 
     setRecordingError(null);
+    setVoiceWave([]);
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -132,6 +157,13 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
         source,
         sendAudioChunk,
         setRecordingError,
+        onLevelSample: (level) => {
+          const clamped = Math.min(1, Math.max(0, level * 1.8));
+          setVoiceWave((previous) => {
+            const next = [...previous, clamped];
+            return next.length > 120 ? next.slice(next.length - 120) : next;
+          });
+        },
       });
 
       processorNodeRef.current = processor;
@@ -251,6 +283,29 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
               ? "Listening… describe how you’d like the image to evolve."
               : "Click start to capture your microphone and describe edits aloud."}
           </p>
+          <div className="mt-4 h-20 rounded-2xl bg-slate-900/5 px-2 py-2" aria-hidden>
+            <svg viewBox="0 0 100 60" preserveAspectRatio="none" className="h-full w-full">
+              <path
+                d={voiceWavePath}
+                fill={isRecording ? "url(#waveFillWarm)" : "none"}
+                stroke={isRecording ? "url(#waveStrokeWarm)" : "#fde68a"}
+                strokeWidth="2.5"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                opacity={isRecording ? 0.95 : 0.35}
+              />
+              <defs>
+                <linearGradient id="waveStrokeWarm" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#fb923c" />
+                  <stop offset="100%" stopColor="#facc15" />
+                </linearGradient>
+                <linearGradient id="waveFillWarm" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor="#f97316" stopOpacity="0.5" />
+                  <stop offset="100%" stopColor="#fcd34d" stopOpacity="0.05" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
           {recordingError && (
             <p className="mt-2 text-xs font-semibold text-rose-500">
               {recordingError}
@@ -363,11 +418,14 @@ class PCM16Processor extends AudioWorkletProcessor {
     if (!input || !input[0]) return true;
     const channelData = input[0];
     const pcm = new Int16Array(channelData.length);
+    let sumSquares = 0;
     for (let i = 0; i < channelData.length; i += 1) {
       const sample = Math.max(-1, Math.min(1, channelData[i]));
       pcm[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+      sumSquares += sample * sample;
     }
-    this.port.postMessage(pcm.buffer, [pcm.buffer]);
+    const rms = Math.sqrt(sumSquares / channelData.length);
+    this.port.postMessage({ buffer: pcm.buffer, level: rms }, [pcm.buffer]);
     return true;
   }
 }
@@ -379,25 +437,34 @@ function processorRefSetup({
   source,
   sendAudioChunk,
   setRecordingError,
+  onLevelSample,
 }: {
   processor: ScriptProcessorNode | AudioWorkletNode;
   source: MediaStreamAudioSourceNode;
   sendAudioChunk: (buffer: ArrayBuffer) => Promise<void>;
   setRecordingError: (value: string | null) => void;
+  onLevelSample: (value: number) => void;
 }) {
   if (processor instanceof AudioWorkletNode) {
     processor.port.onmessage = (event) => {
-      const buffer = event.data as ArrayBuffer;
+      const { buffer, level } = event.data as { buffer: ArrayBuffer; level?: number };
+      if (typeof level === "number") {
+        onLevelSample(level);
+      }
       void sendAudioChunk(buffer);
     };
   } else {
     processor.onaudioprocess = (event) => {
       const channelData = event.inputBuffer.getChannelData(0);
       const pcm = new Int16Array(channelData.length);
+      let sumSquares = 0;
       for (let i = 0; i < channelData.length; i += 1) {
         const sample = Math.max(-1, Math.min(1, channelData[i]));
         pcm[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+        sumSquares += sample * sample;
       }
+      const rms = Math.sqrt(sumSquares / channelData.length);
+      onLevelSample(rms);
       void sendAudioChunk(pcm.buffer);
     };
   }

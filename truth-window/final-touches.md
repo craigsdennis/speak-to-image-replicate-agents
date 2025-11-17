@@ -23,3 +23,51 @@ awesome let's add notes about truth-window folder to the README to show off wher
 ```
 ### Summary
 - Documented the `truth-window/` folder in the README and will include everything in the next commit.
+
+## Entry 4
+### User said
+```
+The next changes I'd like to continue in final-touches.md
+```
+### Summary
+- Acknowledged; subsequent tweaks will keep being logged in this `final-touches.md` session.
+
+## Entry 5
+### User said
+```
+When the microphone is one and being heard it would be great to show the front-end equalizer like view. Can you help add that?
+```
+### Summary
+- Will add an animated equalizer/level meter to the voice streaming card so users can see live microphone input while recording.
+
+## Entry 6
+### User said
+```
+Equalizer doesn't seem to be moving
+```
+### Summary
+- Reworked the audio level detection to capture RMS values and reset state so the visualization can respond to live input.
+
+## Entry 7
+### User said
+```
+I want it to move as I speak maybe more a wave form?
+```
+### Summary
+- Replaced the bar visualization with an SVG waveform that plots the recent RMS history, yielding a more animated view of the microphone input.
+
+## Entry 8
+### User said
+```
+Great let's try and make that more wavey and take up more space, maybe with orange and yellows?
+```
+### Summary
+- Updated the waveform to span the full card width, use an orange/yellow gradient, and sit flat when idle so mic activity feels more alive.
+
+## Entry 9
+### User said
+```
+Awesome that looks good. Let's write that to the truth window and commit
+```
+### Summary
+- Logged the waveform refinements and will commit the updated UI plus Truth Window notes.
