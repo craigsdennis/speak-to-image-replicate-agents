@@ -15,3 +15,11 @@ Can we have it so when an edit is happening to an image that the UI shows it ple
 ```
 ### Summary
 - Added an `activeEdit` flag to the agent state and now overlay a processing badge atop the image whenever an edit is running, so the UI mirrors the backend state.
+
+## Entry 3
+### User said
+```
+Can you help me make the favicon that is the 🖼️ with a 🎤 in it please?
+```
+### Summary
+- Will introduce a custom favicon combining the frame and microphone emoji (🖼️ + 🎤) so the tab icon matches the app theme.
