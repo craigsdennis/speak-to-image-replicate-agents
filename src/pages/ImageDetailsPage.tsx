@@ -340,6 +340,12 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
             onChange={(e) => setEditPromptInput(e.target.value)}
             placeholder="Describe the edit you want ('Make it weirder', 'Remove person')"
             rows={3}
+            onKeyDown={(event) => {
+              if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                event.preventDefault()
+                event.currentTarget.form?.requestSubmit()
+              }
+            }}
             className="w-full rounded-2xl border border-indigo-100 bg-indigo-50/60 px-4 py-3 text-base text-slate-900 placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:opacity-60"
             disabled={isEditing}
           />

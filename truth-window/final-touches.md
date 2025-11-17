@@ -103,3 +103,11 @@ How bout while stream is rolling, just do a pause sign ⏸︎ and "Waiting for E
 ```
 ### Summary
 - Updated the voice-stream button to show a ⏸︎ pause label while edits are running, even though streaming continues silently.
+
+## Entry 14
+### User said
+```
+Awesome I want the forms to submit on cmd or control enter
+```
+### Summary
+- Added Cmd/Ctrl+Enter hotkeys to both prompt forms so edit + create submissions fire instantly from the keyboard.
