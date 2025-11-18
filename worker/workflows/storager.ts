@@ -26,10 +26,10 @@ export class Storager extends WorkflowEntrypoint<Env, StoragerParams> {
       return true;
     });
     if (success) {
-        await step.do(`Updating agent state`, async() => {
-            await agent.setPermanentImage({temporaryUrl, fileName});
-        });
+      await step.do(`Updating agent state`, async () => {
+        await agent.setPermanentImage({ temporaryUrl, fileName });
+      });
     }
-    return "Hi mom";
+    return `Updated ${temporaryUrl} with file ${fileName}`;
   }
 }

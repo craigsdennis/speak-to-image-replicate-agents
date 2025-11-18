@@ -3,7 +3,6 @@ import Replicate from "replicate";
 import {
   base64ToArrayBuffer,
   createImageId,
-  readableStreamToArrayBuffer,
 } from "../utils";
 import { env } from "cloudflare:workers";
 
@@ -93,7 +92,7 @@ export class ImageAgent extends Agent<Env, ImageState> {
     const replicate = new Replicate({
       auth: env.REPLICATE_API_TOKEN,
     });
-    const output = await replicate.run("prunaai/flux-schnell-ultra", {
+    const output = await replicate.run("prunaai/flux-schnell-ultra:39c01f5870354340fb78f2f71e19f9e826d8bceb5a8e6e2f6de8af46dfa702bb", {
       input: {
         prompt,
         aspect_ratio: "1:1",
@@ -101,7 +100,7 @@ export class ImageAgent extends Agent<Env, ImageState> {
     });
 
     // @ts-expect-error - No types yet
-    const url = output.url;
+    const url = output.url();
     const imageFileName = `${this.name}.png`;
     this.env.Storager.create({
       params: {
@@ -121,6 +120,7 @@ export class ImageAgent extends Agent<Env, ImageState> {
         },
       ],
     });
+    console.log({state: JSON.stringify(this.state)})
   }
 
   async generateEditPromptInContext({ prompt }: { prompt: string }) {
@@ -205,11 +205,13 @@ Guidelines:
     const output = outputs[0];
     const editImageId = createImageId(prompt);
     const imageFileName = `edits/${this.name}/${editImageId}.png`;
+    const temporaryImageUrl = output.url().href;
+    console.log({temporaryImageUrl});
     await this.env.Storager.create({
       params: {
         agentName: this.name,
         fileName: imageFileName,
-        temporaryUrl: output.url,
+        temporaryUrl: temporaryImageUrl,
       },
     });
 
@@ -218,7 +220,7 @@ Guidelines:
       {
         prompt,
         generatedPrompt,
-        temporaryImageUrl: output.url,
+        temporaryImageUrl,
         createdAt: new Date().toISOString(),
       },
     ];

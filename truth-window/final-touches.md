@@ -119,3 +119,11 @@ Keep in the final-touches. Only show the edit history when one exists, not befor
 ```
 ### Summary
 - Hid the Edit history accordion until at least one edit exists so the UI stays cleaner for new images.
+
+## Entry 16
+### User said
+```
+I've made it so the current image is now just the latest edit this.state.edits.at(-1). This means when the first image is created we need to use that logic. Can you help me make this happen on hte front end?
+```
+### Summary
+- Displayed image now derives from the last edit (with initial fallback) so the UI stays in sync with the backend logic.
