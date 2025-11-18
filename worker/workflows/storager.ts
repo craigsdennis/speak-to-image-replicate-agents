@@ -15,7 +15,7 @@ export class Storager extends WorkflowEntrypoint<Env, StoragerParams> {
   ): Promise<string> {
     const { agentName, fileName, temporaryUrl } = event.payload;
     const agent = await getAgentByName(this.env.ImageAgent, agentName);
-    const success = await step.do(`Storing ${temporaryUrl} in R2`, async () => {
+    const stored = await step.do(`Storing ${temporaryUrl} in R2`, async () => {
       const imageResponse = await fetch(temporaryUrl);
 
       await this.env.IMAGES.put(fileName, imageResponse.body, {
@@ -25,11 +25,15 @@ export class Storager extends WorkflowEntrypoint<Env, StoragerParams> {
       });
       return true;
     });
-    if (success) {
-      await step.do(`Updating agent state`, async () => {
-        await agent.setPermanentImage({ temporaryUrl, fileName });
-      });
-    }
-    return `Updated ${temporaryUrl} with file ${fileName}`;
+    await step.do(`Updating agent state`, async () => {
+      await agent.setPermanentImage({ temporaryImageUrl: temporaryUrl, fileName });
+    });
+    await step.sleep("Expire Temporary Image URL", "1 hour");
+    const removed = await step.do(`Cleaning up temporary URL ${temporaryUrl}`, async () => {
+      await agent.cleanupTemporaryImageUrl({ temporaryImageUrl: temporaryUrl });
+      return true;
+    });
+
+    return `Stored ${stored}: ${temporaryUrl} with file ${fileName} and removed was ${removed}`;
   }
 }

@@ -206,7 +206,6 @@ Guidelines:
     const editImageId = createImageId(prompt);
     const imageFileName = `edits/${this.name}/${editImageId}.png`;
     const temporaryImageUrl = output.url().href;
-    console.log({temporaryImageUrl});
     await this.env.Storager.create({
       params: {
         agentName: this.name,
@@ -231,17 +230,31 @@ Guidelines:
     });
   }
 
+  async cleanupTemporaryImageUrl({temporaryImageUrl}: {temporaryImageUrl: string}) {
+    const edits = this.state.edits;
+    const edit = edits.find((e) => e.temporaryImageUrl === temporaryImageUrl);
+    if (!edit) {
+      throw new Error(`Temporary Image URL ${temporaryImageUrl} not found`);
+    }
+    edit.temporaryImageUrl = undefined;
+    this.setState({
+      ...this.state,
+      edits,
+    });
+
+  }
+
   async setPermanentImage({
-    temporaryUrl,
+    temporaryImageUrl,
     fileName,
   }: {
-    temporaryUrl: string;
+    temporaryImageUrl: string;
     fileName: string;
   }) {
     const edits = this.state.edits;
-    const edit = edits.find((e) => e.temporaryImageUrl === temporaryUrl);
+    const edit = edits.find((e) => e.temporaryImageUrl === temporaryImageUrl);
     if (!edit) {
-      throw new Error(`Temporary URL ${temporaryUrl} not found`);
+      throw new Error(`Temporary Image URL ${temporaryImageUrl} not found`);
     }
     edit.imageFileName = fileName;
     this.setState({
