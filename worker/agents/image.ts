@@ -9,15 +9,13 @@ import { env } from "cloudflare:workers";
 
 type ImageEdit = {
   prompt: string;
-  generatedPrompt: string;
-  basedOnImageFileName: string;
-  imageFileName: string;
+  generatedPrompt?: string;
+  temporaryImageUrl?: string;
+  imageFileName?: string;
   createdAt: string;
 };
 
 export type ImageState = {
-  initialPrompt?: string;
-  currentImageFileName?: string;
   edits: ImageEdit[];
   createdAt: string;
   activeEdit?: {
@@ -56,16 +54,25 @@ export class ImageAgent extends Agent<Env, ImageState> {
           if (type === "TurnInfo" && event === "EndOfTurn" && transcript) {
             this.onTranscription(transcript);
           }
-      });
-
+        });
       }
     }
     return this._deepgramSocket;
   }
 
+  async onClose() {
+    const connectionCount = [...this.getConnections()].length;
+    if (connectionCount === 0) {
+      if (this._deepgramSocket) {
+        this._deepgramSocket.close();
+        this._deepgramSocket = undefined;
+      }
+    }
+  }
+
   async onTranscription(transcription: string) {
     if (this.state.activeEdit === null) {
-      await this.editCurrentImage({prompt: transcription});
+      await this.editCurrentImage({ prompt: transcription });
     } else {
       console.warn(`Heard "${transcription}" in middle of edit`);
     }
@@ -86,33 +93,33 @@ export class ImageAgent extends Agent<Env, ImageState> {
     const replicate = new Replicate({
       auth: env.REPLICATE_API_TOKEN,
     });
-    const output = await replicate.run(
-      "prunaai/flux-schnell-ultra:39c01f5870354340fb78f2f71e19f9e826d8bceb5a8e6e2f6de8af46dfa702bb",
-      {
-        input: {
-          prompt,
-          aspect_ratio: "1:1",
-        },
-      }
-    );
+    const output = await replicate.run("prunaai/flux-schnell-ultra", {
+      input: {
+        prompt,
+        aspect_ratio: "1:1",
+      },
+    });
 
+    // @ts-expect-error - No types yet
+    const url = output.url;
     const imageFileName = `${this.name}.png`;
-    const stream = output instanceof Response ? output.body : output; // if it's already a ReadableStream
-
-    await env.IMAGES.put(
-      imageFileName,
-      await readableStreamToArrayBuffer(stream as ReadableStream),
-      {
-        httpMetadata: {
-          contentType: "image/png",
-        },
-      }
-    );
+    this.env.Storager.create({
+      params: {
+        agentName: this.name,
+        temporaryUrl: url,
+        fileName: imageFileName,
+      },
+    });
 
     this.setState({
       ...this.state,
-      currentImageFileName: imageFileName,
-      initialPrompt: prompt,
+      edits: [
+        {
+          prompt,
+          temporaryImageUrl: url,
+          createdAt: new Date().toISOString(),
+        },
+      ],
     });
   }
 
@@ -124,13 +131,13 @@ export class ImageAgent extends Agent<Env, ImageState> {
     const system_instruction = `You help refine an existing image by combining the original concept with the latest edit request.
 
 <OriginalPrompt>
-${this.state.initialPrompt ?? ""}
+${this.state.edits[0].prompt ?? ""}
 </OriginalPrompt>
 
 <EditHistory>
 ${
   this.state.edits
-    .map((edit, index) => `Edit ${index + 1}: ${edit.prompt}`)
+    .map((edit, index) => `Edit ${index}: ${edit.prompt}`)
     .join("\n") || "(none yet)"
 }
 </EditHistory>
@@ -171,12 +178,21 @@ Guidelines:
     const replicate = new Replicate({
       auth: env.REPLICATE_API_TOKEN,
     });
-    const obj = await env.IMAGES.get(this.state.currentImageFileName as string);
-    if (obj === null) {
-      throw new Error("Image not found");
+    const currentImage = this.state.edits.at(-1);
+    let imageInput;
+    // If the temporary URL is available use it as the input
+    if (currentImage?.temporaryImageUrl) {
+      imageInput = currentImage.temporaryImageUrl;
+    } else {
+      const obj = await env.IMAGES.get(currentImage?.imageFileName as string);
+      if (obj === null) {
+        throw new Error("Image not found");
+      }
+      imageInput = await obj.blob();
     }
+    // Schedule deletion of URL
     const input = {
-      image: [await obj.blob()],
+      image: [imageInput],
       prompt: generatedPrompt,
       go_fast: true,
       aspect_ratio: "match_input_image",
@@ -184,46 +200,51 @@ Guidelines:
       output_quality: 95,
     };
 
-    try {
-      const outputs = await replicate.run("qwen/qwen-image-edit-plus", { input });
-      // @ts-expect-error - This isn't typed yet
-      const output = outputs[0];
-      const editImageId = createImageId(prompt);
-      const imageFileName = `edits/${this.name}/${editImageId}.png`;
-      const stream = output instanceof Response ? output.body : output; // if it's already a ReadableStream
+    const outputs = await replicate.run("qwen/qwen-image-edit-plus", { input });
+    // @ts-expect-error - This isn't typed yet
+    const output = outputs[0];
+    const editImageId = createImageId(prompt);
+    const imageFileName = `edits/${this.name}/${editImageId}.png`;
+    await this.env.Storager.create({
+      params: {
+        agentName: this.name,
+        fileName: imageFileName,
+        temporaryUrl: output.url,
+      },
+    });
 
-      await env.IMAGES.put(
-        imageFileName,
-        await readableStreamToArrayBuffer(stream as ReadableStream),
-        {
-          httpMetadata: {
-            contentType: "image/png",
-          },
-        }
-      );
+    const edits = [
+      ...this.state.edits,
+      {
+        prompt,
+        generatedPrompt,
+        temporaryImageUrl: output.url,
+        createdAt: new Date().toISOString(),
+      },
+    ];
+    this.setState({
+      ...this.state,
+      edits,
+      activeEdit: null,
+    });
+  }
 
-      const edits = [
-        ...this.state.edits,
-        {
-          prompt,
-          generatedPrompt,
-          imageFileName,
-          basedOnImageFileName: this.state.currentImageFileName as string,
-          createdAt: new Date().toISOString(),
-        },
-      ];
-      this.setState({
-        ...this.state,
-        edits,
-        currentImageFileName: imageFileName,
-        activeEdit: null,
-      });
-    } catch (error) {
-      this.setState({
-        ...this.state,
-        activeEdit: null,
-      });
-      throw error;
+  async setPermanentImage({
+    temporaryUrl,
+    fileName,
+  }: {
+    temporaryUrl: string;
+    fileName: string;
+  }) {
+    const edits = this.state.edits;
+    const edit = edits.find((e) => e.temporaryImageUrl === temporaryUrl);
+    if (!edit) {
+      throw new Error(`Temporary URL ${temporaryUrl} not found`);
     }
+    edit.imageFileName = fileName;
+    this.setState({
+      ...this.state,
+      edits,
+    });
   }
 }

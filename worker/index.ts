@@ -1,10 +1,11 @@
 import { Hono } from "hono";
 import { agentsMiddleware } from "hono-agents";
-import { ImageAgent } from "./agents/image";
 import { getAgentByName } from "agents";
+import { ImageAgent } from "./agents/image";
+import { Storager } from "./workflows/storager";
 import { createImageId } from "./utils";
 
-export { ImageAgent };
+export { ImageAgent, Storager };
 
 const app = new Hono<{ Bindings: Env }>();
 
