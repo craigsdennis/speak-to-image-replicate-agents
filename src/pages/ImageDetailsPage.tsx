@@ -13,7 +13,7 @@ import type { ImageAgent, ImageState } from "../../worker/agents/image";
 
 export function ImageDetailsPage({ imageId }: { imageId: string }) {
   const [initialPrompt, setInitialPrompt] = useState<string>();
-  const [currentImageFileName, setCurrentImageFileName] = useState<string>();
+  const [baseImageFileName, setBaseImageFileName] = useState<string>();
   const [createdAtDisplay, setCreatedAtDisplay] = useState<string>();
   const [edits, setEdits] = useState<ImageState["edits"]>([]);
   const [activeEdit, setActiveEdit] = useState<ImageState["activeEdit"]>(null);
@@ -34,7 +34,6 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
     name: imageId,
     onStateUpdate(state) {
       setInitialPrompt(state.initialPrompt);
-      setCurrentImageFileName(state.currentImageFileName);
       const createdAtDisplay = new Intl.DateTimeFormat(undefined, {
         dateStyle: "medium",
         timeStyle: "short",
@@ -42,6 +41,7 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
       setCreatedAtDisplay(createdAtDisplay);
       setEdits(state.edits ?? []);
       setActiveEdit(state.activeEdit ?? null);
+      setBaseImageFileName(state.currentImageFileName);
     },
   });
 
@@ -75,6 +75,17 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
       });
     return `M0,30 ${upper.join(" ")} ${lower.join(" ")} Z`;
   }, [voiceWave, showActiveWave]);
+
+  const latestEdit = edits.at(-1);
+
+  const displayedImageSrc = useMemo(() => {
+    if (latestEdit) {
+      return latestEdit.imageFileName
+        ? `/api/images/${latestEdit.imageFileName}`
+        : latestEdit.temporaryImageUrl;
+    }
+    return baseImageFileName ? `/api/images/${baseImageFileName}` : undefined;
+  }, [latestEdit, baseImageFileName]);
 
   useEffect(() => {
     if (!isRecording) {
@@ -229,10 +240,10 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
             {initialPrompt}
           </h1>
         </header>
-        {currentImageFileName ? (
+        {displayedImageSrc ? (
           <div className="relative overflow-hidden rounded-2xl border border-slate-100 bg-slate-50" aria-busy={Boolean(activeEdit)}>
             <img
-              src={`/api/images/${currentImageFileName}`}
+              src={displayedImageSrc}
               alt={initialPrompt}
               className={`block aspect-square w-full object-cover transition-opacity duration-300 ${
                 activeEdit ? "opacity-60" : "opacity-100"
@@ -373,11 +384,15 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
             </summary>
             <div className="space-y-4 border-t border-slate-100 px-4 py-4 text-sm text-slate-600">
               <ol className="space-y-4">
-                {edits.map((edit, index) => (
-                  <li
-                    key={`${edit.imageFileName}-${edit.createdAt}`}
-                    className="flex flex-col gap-2 rounded-2xl border border-slate-100 bg-slate-50/75 p-4"
-                  >
+                {edits.map((edit, index) => {
+                  const editImageSrc = edit.imageFileName
+                    ? `/api/images/${edit.imageFileName}`
+                    : edit.temporaryImageUrl;
+                  return (
+                    <li
+                      key={`${edit.imageFileName ?? edit.temporaryImageUrl ?? index}-${edit.createdAt}`}
+                      className="flex flex-col gap-2 rounded-2xl border border-slate-100 bg-slate-50/75 p-4"
+                    >
                     <div className="flex items-center justify-between text-xs uppercase tracking-wide text-slate-400">
                       <span>Edit {index + 1}</span>
                       <span>
@@ -387,15 +402,18 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
                         }).format(new Date(edit.createdAt))}
                       </span>
                     </div>
-                    <img
-                      src={`/api/images/${edit.imageFileName}`}
-                      alt={edit.prompt}
-                      className="rounded-xl border border-slate-200"
-                    />
+                    {editImageSrc && (
+                      <img
+                        src={editImageSrc}
+                        alt={edit.prompt}
+                        className="rounded-xl border border-slate-200"
+                      />
+                    )}
                     <p className="text-base text-slate-900"><span className="font-semibold">Refinement:</span> {edit.prompt}</p>
                     <p className="text-base text-slate-900"><span className="font-semibold">Generated prompt:</span> {edit.generatedPrompt}</p>
                   </li>
-                ))}
+                  );
+                })}
               </ol>
             </div>
           </details>
