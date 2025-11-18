@@ -1,9 +1,6 @@
 import { Agent, callable, type Connection, type WSMessage } from "agents";
 import Replicate from "replicate";
-import {
-  base64ToArrayBuffer,
-  createImageId,
-} from "../utils";
+import { base64ToArrayBuffer, createImageId } from "../utils";
 import { env } from "cloudflare:workers";
 
 type ImageEdit = {
@@ -44,17 +41,18 @@ export class ImageAgent extends Agent<Env, ImageState> {
           websocket: true,
         }
       );
-      if (response.webSocket !== null) {
-        this._deepgramSocket = response.webSocket;
-        this._deepgramSocket.accept();
-        this._deepgramSocket.addEventListener("message", (evt) => {
-          const response = JSON.parse(evt.data);
-          const { type, event, transcript } = response;
-          if (type === "TurnInfo" && event === "EndOfTurn" && transcript) {
-            this.onTranscription(transcript);
-          }
-        });
+      if (response.webSocket === null) {
+        throw new Error("Unable to connect to Deepgram WebSocket");
       }
+      this._deepgramSocket = response.webSocket;
+      this._deepgramSocket.accept();
+      this._deepgramSocket.addEventListener("message", (evt) => {
+        const response = JSON.parse(evt.data);
+        const { type, event, transcript } = response;
+        if (type === "TurnInfo" && event === "EndOfTurn" && transcript) {
+          this.onTranscription(transcript);
+        }
+      });
     }
     return this._deepgramSocket;
   }
@@ -92,12 +90,15 @@ export class ImageAgent extends Agent<Env, ImageState> {
     const replicate = new Replicate({
       auth: env.REPLICATE_API_TOKEN,
     });
-    const output = await replicate.run("prunaai/flux-schnell-ultra:39c01f5870354340fb78f2f71e19f9e826d8bceb5a8e6e2f6de8af46dfa702bb", {
-      input: {
-        prompt,
-        aspect_ratio: "1:1",
-      },
-    });
+    const output = await replicate.run(
+      "prunaai/flux-schnell-ultra:39c01f5870354340fb78f2f71e19f9e826d8bceb5a8e6e2f6de8af46dfa702bb",
+      {
+        input: {
+          prompt,
+          aspect_ratio: "1:1",
+        },
+      }
+    );
 
     // @ts-expect-error - No types yet
     const url = output.url();
@@ -120,7 +121,7 @@ export class ImageAgent extends Agent<Env, ImageState> {
         },
       ],
     });
-    console.log({state: JSON.stringify(this.state)})
+    console.log({ state: JSON.stringify(this.state) });
   }
 
   async generateEditPromptInContext({ prompt }: { prompt: string }) {
@@ -146,8 +147,9 @@ Guidelines:
 1. Output a single prompt suitable for editing the current image (never for generating a new image from scratch).
 2. Reuse prior edits only when the new request depends on them (e.g., "even bigger" should reference the previous "make the hat bigger" instruction).
 3. If the request stands alone, echo it back verbatim.
-4. Prefer concrete references over ambiguous pronouns when additional context helps (e.g., say "hat" rather than "it" when needed).
-5. Return only the final prompt text—no prefixes or explanations.`;
+4. If the removal of something specific from the image is requested, echo back the prompt verbatim.
+5. Prefer concrete references over ambiguous pronouns when additional context helps (e.g., say "hat" rather than "it" when needed).
+6. Return only the final prompt text—no prefixes or explanations.`;
 
     const items = await replicate.run("google/gemini-2.5-flash", {
       input: {
@@ -230,7 +232,11 @@ Guidelines:
     });
   }
 
-  async cleanupTemporaryImageUrl({temporaryImageUrl}: {temporaryImageUrl: string}) {
+  async cleanupTemporaryImageUrl({
+    temporaryImageUrl,
+  }: {
+    temporaryImageUrl: string;
+  }) {
     const edits = this.state.edits;
     const edit = edits.find((e) => e.temporaryImageUrl === temporaryImageUrl);
     if (!edit) {
@@ -241,7 +247,6 @@ Guidelines:
       ...this.state,
       edits,
     });
-
   }
 
   async setPermanentImage({

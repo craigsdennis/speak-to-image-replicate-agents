@@ -1,9 +1,11 @@
+import Replicate from "replicate";
 import { Hono } from "hono";
 import { agentsMiddleware } from "hono-agents";
 import { getAgentByName } from "agents";
 import { ImageAgent } from "./agents/image";
 import { Storager } from "./workflows/storager";
 import { createImageId } from "./utils";
+
 
 export { ImageAgent, Storager };
 
@@ -41,6 +43,28 @@ app.get("/api/images/*", async (c) => {
   }
   // TODO: cache?
   return c.body(obj.body, 200, { "Content-Type": "image/png" });
+});
+
+app.post("/api/prompts", async (c) => {
+  const replicate = new Replicate({
+    auth: c.env.REPLICATE_API_TOKEN,
+  });
+
+  const items = await replicate.run("google/gemini-2.5-flash", {
+    input: {
+      prompt: `Create a one sentence prompt for an image generation model that will produce a nice image.
+      
+      Add some weird, strange, or a few out of context items that don't belong in that photo.
+      
+      Return only the prompt.
+      `,
+      dynamic_thinking: false,
+      max_output_tokens: 5000
+
+    },
+  });
+  // @ts-expect-error - Missing types atm
+  return c.json({ prompt: items[0] });
 });
 
 app.use("*", agentsMiddleware());
