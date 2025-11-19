@@ -12,8 +12,6 @@ import { PageShell } from "./PageShell";
 import type { ImageAgent, ImageState } from "../../worker/agents/image";
 
 export function ImageDetailsPage({ imageId }: { imageId: string }) {
-  const [initialPrompt, setInitialPrompt] = useState<string>();
-  const [baseImageFileName, setBaseImageFileName] = useState<string>();
   const [createdAtDisplay, setCreatedAtDisplay] = useState<string>();
   const [edits, setEdits] = useState<ImageState["edits"]>([]);
   const [activeEdit, setActiveEdit] = useState<ImageState["activeEdit"]>(null);
@@ -26,14 +24,15 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const processorNodeRef = useRef<AudioWorkletNode | ScriptProcessorNode | null>(null);
+  const processorNodeRef = useRef<
+    AudioWorkletNode | ScriptProcessorNode | null
+  >(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
   const agent = useAgent<ImageAgent, ImageState>({
     agent: "image-agent",
     name: imageId,
     onStateUpdate(state) {
-      setInitialPrompt(state.initialPrompt);
       const createdAtDisplay = new Intl.DateTimeFormat(undefined, {
         dateStyle: "medium",
         timeStyle: "short",
@@ -41,7 +40,6 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
       setCreatedAtDisplay(createdAtDisplay);
       setEdits(state.edits ?? []);
       setActiveEdit(state.activeEdit ?? null);
-      setBaseImageFileName(state.currentImageFileName);
     },
   });
 
@@ -77,15 +75,15 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
   }, [voiceWave, showActiveWave]);
 
   const latestEdit = edits.at(-1);
+  const initialEdit = edits[0];
+  const promptTitle = initialEdit?.prompt ?? latestEdit?.prompt ?? 'Image in progress';
 
   const displayedImageSrc = useMemo(() => {
-    if (latestEdit) {
-      return latestEdit.imageFileName
-        ? `/api/images/${latestEdit.imageFileName}`
-        : latestEdit.temporaryImageUrl;
-    }
-    return baseImageFileName ? `/api/images/${baseImageFileName}` : undefined;
-  }, [latestEdit, baseImageFileName]);
+    if (!latestEdit) return undefined;
+    return latestEdit.imageFileName
+      ? `/api/images/${latestEdit.imageFileName}`
+      : latestEdit.temporaryImageUrl;
+  }, [latestEdit]);
 
   useEffect(() => {
     if (!isRecording) {
@@ -108,9 +106,7 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
       } catch (error) {
         console.error("Failed to send audio chunk", error);
         setRecordingError(
-          error instanceof Error
-            ? error.message
-            : "Unable to send audio chunk."
+          error instanceof Error ? error.message : "Unable to send audio chunk."
         );
       }
     },
@@ -141,7 +137,10 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
   }, [agent, imageId]);
 
   const startRecording = useCallback(async () => {
-    if (typeof window === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+    if (
+      typeof window === "undefined" ||
+      !navigator.mediaDevices?.getUserMedia
+    ) {
       setRecordingError("Microphone access is not supported in this browser.");
       return;
     }
@@ -157,20 +156,17 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
       const source = audioContext.createMediaStreamSource(stream);
       sourceNodeRef.current = source;
 
-      let processor: ScriptProcessorNode | AudioWorkletNode;
-      if (audioContext.audioWorklet) {
-        try {
-          await audioContext.audioWorklet.addModule(
-            URL.createObjectURL(new Blob([workletProcessor], { type: "text/javascript" }))
-          );
-          processor = new AudioWorkletNode(audioContext, "pcm16-worklet");
-        } catch {
-          processor = audioContext.createScriptProcessor(4096, 1, 1);
-        }
-      } else {
-        processor = audioContext.createScriptProcessor(4096, 1, 1);
+      if (!audioContext.audioWorklet) {
+        setRecordingError("This browser does not support audio worklets.");
+        setIsRecording(false);
+        return;
       }
-
+      await audioContext.audioWorklet.addModule(
+        URL.createObjectURL(
+          new Blob([workletProcessor], { type: "text/javascript" })
+        )
+      );
+      const processor = new AudioWorkletNode(audioContext, "pcm16-worklet");
       processorRefSetup({
         processor,
         source,
@@ -237,14 +233,17 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
       <section className="flex flex-col gap-8 rounded-3xl bg-white/95 p-8 text-slate-900 shadow-2xl ring-1 ring-white/10">
         <header className="flex flex-col gap-2">
           <h1 className="text-3xl font-semibold text-slate-950">
-            {initialPrompt}
+            {promptTitle}
           </h1>
         </header>
         {displayedImageSrc ? (
-          <div className="relative overflow-hidden rounded-2xl border border-slate-100 bg-slate-50" aria-busy={Boolean(activeEdit)}>
+          <div
+            className="relative overflow-hidden rounded-2xl border border-slate-100 bg-slate-50"
+            aria-busy={Boolean(activeEdit)}
+          >
             <img
               src={displayedImageSrc}
-              alt={initialPrompt}
+              alt={promptTitle}
               className={`block aspect-square w-full object-cover transition-opacity duration-300 ${
                 activeEdit ? "opacity-60" : "opacity-100"
               }`}
@@ -271,9 +270,11 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
         <section className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm font-semibold text-slate-700">🎙️ Voice edits</p>
+              <p className="text-sm font-semibold text-slate-700">
+                🎙️ Voice edits
+              </p>
               <p className="text-xs text-slate-500">
-                Streaming to{' '}
+                Streaming to{" "}
                 <a
                   className="font-semibold text-indigo-600 underline-offset-2 hover:underline"
                   href="https://developers.cloudflare.com/workers-ai/models/flux/"
@@ -282,13 +283,13 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
                 >
                   Deepgram Flux on Workers AI
                 </a>
-                . Speak your instructions and we’ll feed them in live.
+                . Speak your instructions and we'll feed them in live.
               </p>
             </div>
             <button
               type="button"
               onClick={isRecording ? stopRecording : startRecording}
-              className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-xs font-semibold text-white transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 ${
+              className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-xs font-semibold text-white transition focus-visible:outline focus-visible:outline-indigo-500 ${
                 isRecording
                   ? activeEdit
                     ? "bg-amber-500 hover:bg-amber-400"
@@ -298,9 +299,9 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
             >
               {isRecording
                 ? activeEdit
-                  ? '⏸︎ Waiting for edit to complete'
-                  : '🛑 Stop stream'
-                : '🚀 Start voice stream'}
+                  ? "⏸︎ Waiting for edit to complete"
+                  : "🛑 Stop stream"
+                : "🚀 Start voice stream"}
             </button>
           </div>
           <p className="mt-2 text-xs text-slate-500">
@@ -315,8 +316,15 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
               {recordingError}
             </p>
           )}
-          <div className="mt-4 h-20 rounded-2xl bg-slate-900/5 px-2 py-2" aria-hidden>
-            <svg viewBox="0 0 100 60" preserveAspectRatio="none" className="h-full w-full">
+          <div
+            className="mt-4 h-20 rounded-2xl bg-slate-900/5 px-2 py-2"
+            aria-hidden
+          >
+            <svg
+              viewBox="0 0 100 60"
+              preserveAspectRatio="none"
+              className="h-full w-full"
+            >
               <path
                 d={voiceWavePath}
                 fill={showActiveWave ? "url(#waveFillWarm)" : "none"}
@@ -327,11 +335,23 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
                 opacity={showActiveWave ? 0.95 : 0.15}
               />
               <defs>
-                <linearGradient id="waveStrokeWarm" x1="0%" y1="0%" x2="100%" y2="0%">
+                <linearGradient
+                  id="waveStrokeWarm"
+                  x1="0%"
+                  y1="0%"
+                  x2="100%"
+                  y2="0%"
+                >
                   <stop offset="0%" stopColor="#fb923c" />
                   <stop offset="100%" stopColor="#facc15" />
                 </linearGradient>
-                <linearGradient id="waveFillWarm" x1="0%" y1="0%" x2="0%" y2="100%">
+                <linearGradient
+                  id="waveFillWarm"
+                  x1="0%"
+                  y1="0%"
+                  x2="0%"
+                  y2="100%"
+                >
                   <stop offset="0%" stopColor="#f97316" stopOpacity="0.5" />
                   <stop offset="100%" stopColor="#fcd34d" stopOpacity="0.05" />
                 </linearGradient>
@@ -341,7 +361,10 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
         </section>
 
         <form className="flex flex-col gap-3" onSubmit={handleEditCurrentImage}>
-          <label className="text-sm font-semibold text-slate-600" htmlFor="editPrompt">
+          <label
+            className="text-sm font-semibold text-slate-600"
+            htmlFor="editPrompt"
+          >
             Refine this image
           </label>
           <textarea
@@ -352,9 +375,9 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
             placeholder="Describe the edit you want ('Make it weirder', 'Remove person')"
             rows={3}
             onKeyDown={(event) => {
-              if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-                event.preventDefault()
-                event.currentTarget.form?.requestSubmit()
+              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                event.preventDefault();
+                event.currentTarget.form?.requestSubmit();
               }
             }}
             className="w-full rounded-2xl border border-indigo-100 bg-indigo-50/60 px-4 py-3 text-base text-slate-900 placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:opacity-60"
@@ -367,7 +390,7 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
             <button
               type="submit"
               disabled={isEditing || !editPromptValue}
-              className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-6 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center justify-center rounded-full bg-linear-to-r from-indigo-500 via-purple-500 to-pink-500 px-6 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isEditing ? "Submitting…" : "Apply edit"}
             </button>
@@ -375,7 +398,10 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
         </form>
 
         {edits.length > 0 && (
-          <details className="rounded-2xl border border-slate-100 bg-white/80" role="group">
+          <details
+            className="rounded-2xl border border-slate-100 bg-white/80"
+            role="group"
+          >
             <summary className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-slate-700">
               <span>Edit history</span>
               <span className="rounded-full bg-slate-900/10 px-3 py-1 text-xs font-medium text-slate-600">
@@ -393,25 +419,33 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
                       key={`${edit.imageFileName ?? edit.temporaryImageUrl ?? index}-${edit.createdAt}`}
                       className="flex flex-col gap-2 rounded-2xl border border-slate-100 bg-slate-50/75 p-4"
                     >
-                    <div className="flex items-center justify-between text-xs uppercase tracking-wide text-slate-400">
-                      <span>Edit {index + 1}</span>
-                      <span>
-                        {new Intl.DateTimeFormat(undefined, {
-                          dateStyle: "medium",
-                          timeStyle: "short",
-                        }).format(new Date(edit.createdAt))}
-                      </span>
-                    </div>
-                    {editImageSrc && (
-                      <img
-                        src={editImageSrc}
-                        alt={edit.prompt}
-                        className="rounded-xl border border-slate-200"
-                      />
-                    )}
-                    <p className="text-base text-slate-900"><span className="font-semibold">Refinement:</span> {edit.prompt}</p>
-                    <p className="text-base text-slate-900"><span className="font-semibold">Generated prompt:</span> {edit.generatedPrompt}</p>
-                  </li>
+                      <div className="flex items-center justify-between text-xs uppercase tracking-wide text-slate-400">
+                        <span>Edit {index + 1}</span>
+                        <span>
+                          {new Intl.DateTimeFormat(undefined, {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                          }).format(new Date(edit.createdAt))}
+                        </span>
+                      </div>
+                      {editImageSrc && (
+                        <img
+                          src={editImageSrc}
+                          alt={edit.prompt}
+                          className="rounded-xl border border-slate-200"
+                        />
+                      )}
+                      <p className="text-base text-slate-900">
+                        <span className="font-semibold">Refinement:</span>{" "}
+                        {edit.prompt}
+                      </p>
+                      {edit.generatedPrompt && edit.generatedPrompt !== edit.prompt && (
+                        <p className="text-base text-slate-900">
+                          <span className="font-semibold">Generated prompt:</span>{" "}
+                          {edit.generatedPrompt}
+                        </p>
+                      )}
+                    </li>
                   );
                 })}
               </ol>
@@ -477,35 +511,22 @@ function processorRefSetup({
   setRecordingError,
   onLevelSample,
 }: {
-  processor: ScriptProcessorNode | AudioWorkletNode;
+  processor: AudioWorkletNode;
   source: MediaStreamAudioSourceNode;
   sendAudioChunk: (buffer: ArrayBuffer) => Promise<void>;
   setRecordingError: (value: string | null) => void;
   onLevelSample: (value: number) => void;
 }) {
-  if (processor instanceof AudioWorkletNode) {
-    processor.port.onmessage = (event) => {
-      const { buffer, level } = event.data as { buffer: ArrayBuffer; level?: number };
-      if (typeof level === "number") {
-        onLevelSample(level);
-      }
-      void sendAudioChunk(buffer);
+  processor.port.onmessage = (event) => {
+    const { buffer, level } = event.data as {
+      buffer: ArrayBuffer;
+      level?: number;
     };
-  } else {
-    processor.onaudioprocess = (event) => {
-      const channelData = event.inputBuffer.getChannelData(0);
-      const pcm = new Int16Array(channelData.length);
-      let sumSquares = 0;
-      for (let i = 0; i < channelData.length; i += 1) {
-        const sample = Math.max(-1, Math.min(1, channelData[i]));
-        pcm[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
-        sumSquares += sample * sample;
-      }
-      const rms = Math.sqrt(sumSquares / channelData.length);
-      onLevelSample(rms);
-      void sendAudioChunk(pcm.buffer);
-    };
-  }
+    if (typeof level === "number") {
+      onLevelSample(level);
+    }
+    void sendAudioChunk(buffer);
+  };
 
   try {
     source.connect(processor);
@@ -513,7 +534,9 @@ function processorRefSetup({
   } catch (error) {
     console.error("Unable to wire audio processor", error);
     setRecordingError(
-      error instanceof Error ? error.message : "Unable to start the audio processor."
+      error instanceof Error
+        ? error.message
+        : "Unable to start the audio processor."
     );
   }
 }
