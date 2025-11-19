@@ -232,9 +232,9 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
     <PageShell>
       <section className="flex flex-col gap-8 rounded-3xl bg-white/95 p-8 text-slate-900 shadow-2xl ring-1 ring-white/10">
         <header className="flex flex-col gap-2">
-          <h1 className="text-3xl font-semibold text-slate-950">
-            {promptTitle}
-          </h1>
+          <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-500">
+            Image details
+          </p>
         </header>
         {displayedImageSrc ? (
           <div
@@ -266,6 +266,7 @@ export function ImageDetailsPage({ imageId }: { imageId: string }) {
             Image processing…
           </div>
         )}
+        <p className="text-sm italic text-slate-500">{promptTitle}</p>
 
         <section className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

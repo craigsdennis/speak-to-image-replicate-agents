@@ -47,3 +47,19 @@ If there isn't a generated prompt or the prompt and generated prompt are the sam
 ```
 ### Summary
 - Hide the “Generated prompt” line unless it exists and differs from the user’s refinement.
+
+## Entry 7
+### User said
+```
+Let's move the title under the photo and make it look more like a caption than a page title
+```
+### Summary
+- Will relocate the prompt title beneath the image and restyle it as a caption.
+
+## Entry 8
+### User said
+```
+Let's move the title under the photo and make it look more like a caption than a page title
+```
+### Summary
+- Header now just labels the section while the prompt text sits beneath the image as a muted caption.
