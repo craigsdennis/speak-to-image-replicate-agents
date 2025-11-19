@@ -12,15 +12,8 @@ export { ImageAgent, Storager };
 const app = new Hono<{ Bindings: Env }>();
 
 app.post("/api/images/create", async (c) => {
-  let body: { prompt?: string } | null = null;
-
-  try {
-    body = await c.req.json();
-  } catch {
-    return c.json({ error: "Invalid JSON body." }, 400);
-  }
-
-  const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
+  const body: { prompt?: string } = await c.req.json();
+  const prompt = body?.prompt?.trim();
 
   if (!prompt) {
     return c.json({ error: "Prompt is required." }, 400);

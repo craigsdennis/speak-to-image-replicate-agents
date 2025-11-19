@@ -144,12 +144,12 @@ ${
 </EditHistory>
 
 Guidelines:
-1. Output a single prompt suitable for editing the current image (never for generating a new image from scratch).
+1. Output a single prompt suitable for editing the current image (never for generating a new image from scratch. Remember the image is passed alongside this prompt).
 2. Reuse prior edits only when the new request depends on them (e.g., "even bigger" should reference the previous "make the hat bigger" instruction).
 3. If the request stands alone, echo it back verbatim.
-4. If the removal of something specific from the image is requested, echo back the prompt verbatim.
+4. If the removal of something specific from the image is requested, echo back the what the user asked for verbatim.
 5. Prefer concrete references over ambiguous pronouns when additional context helps (e.g., say "hat" rather than "it" when needed).
-6. Return only the final prompt text—no prefixes or explanations.`;
+6. Return only the final prompt text — no prefixes or explanations.`;
 
     const items = await replicate.run("google/gemini-2.5-flash", {
       input: {
@@ -159,6 +159,7 @@ Guidelines:
     });
 
     // Fall back to original prompt if failure
+    // @ts-expect-error - Missing types
     const response = items[0] ?? prompt;
 
     return response;
