@@ -1,5 +1,8 @@
 # Speak to Image
 
+[<img src="https://img.youtube.com/vi/zOZFL0EtJn4/0.jpg">](https://youtu.be/zOZFL0EtJn4 "Build a Voice Based Image Editor with Replicate, Deepgram, and Agents SDK
+")
+
 An educational repo that shows off a React app backed by a Cloudflare Agent. The agent calls Replicate to generate/edit images while the client can stream real-time microphone audio to Deepgram Flux on Workers AI, letting you “speak” the next edit.
 
 ## What you will learn
